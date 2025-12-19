@@ -1,0 +1,14 @@
+path: D:\Downloads\yolov12-main\yolov12-main\ultralytics\cfg\datasets\Roboflow Human_Fall_Detection
+train: train/images
+val: val/images
+test: test/images
+
+nc: 1
+names: ['Fall']
+
+roboflow:
+  workspace: roboflow-universe-projects
+  project: fall-detection-ca3o8
+  version: 4
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/roboflow-universe-projects/fall-detection-ca3o8/dataset/4
