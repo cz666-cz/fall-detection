@@ -39,9 +39,9 @@ class QualityfocalLoss(nn.Module):
         return loss
 
 
-class SlideLoss(nn.Module):
+class BA-SlideLoss(nn.Module):
     def __init__(self, loss_fcn):
-        super(SlideLoss, self).__init__()
+        super(BA-SlideLoss, self).__init__()
         self.loss_fcn = loss_fcn
         self.reduction = loss_fcn.reduction
         self.loss_fcn.reduction = 'none'  # required to apply SL to each element
@@ -50,20 +50,29 @@ class SlideLoss(nn.Module):
         loss = self.loss_fcn(pred, true)
         if auto_iou < 0.2:
             auto_iou = 0.2
-        b1 = true <= auto_iou - 0.1
-        a1 = 1.0
-        b2 = (true > (auto_iou - 0.1)) & (true < auto_iou)
-        a2 = math.exp(1.0 - auto_iou)
-        b3 = true >= auto_iou
-        a3 = torch.exp(-(true - 1.0))
+
+        # Condition 1: x <= mu - 0.1
+        b1 = true <= (auto_iou - 0.1)
+        a1 = math.exp(1.0 - (auto_iou + 0.1))
+
+        # Condition 2: mu - 0.1 < x < mu + 0.1
+        b2 = (true > (auto_iou - 0.1)) & (true < (auto_iou + 0.1))
+        a2 = torch.exp(1.0 - true)
+
+        # Condition 3: x >= mu + 0.1
+        b3 = true >= (auto_iou + 0.1)
+        a3 = math.exp(1.0 - (auto_iou + 0.1))
+
         modulating_weight = a1 * b1 + a2 * b2 + a3 * b3
         loss *= modulating_weight
+
         if self.reduction == 'mean':
             return loss.mean()
         elif self.reduction == 'sum':
             return loss.sum()
         else:  # 'none'
             return loss
+
 
 
 class Focal_Loss(nn.Module):
@@ -417,7 +426,7 @@ class v8DetectionLoss:
 
         m = model.model[-1]  # Detect() module
         self.bce = nn.BCEWithLogitsLoss(reduction="none")
-        self.bce = SlideLoss(nn.BCEWithLogitsLoss(reduction='none')) # SlideLoss
+        self.bce = BA-SlideLoss(nn.BCEWithLogitsLoss(reduction='none')) # BA-SlideLoss
         self.hyp = h
         self.stride = m.stride  # model strides
         self.nc = m.nc  # number of classes
@@ -492,12 +501,12 @@ class v8DetectionLoss:
         # loss[1] = self.varifocal_loss(pred_scores, target_scores, target_labels) / target_scores_sum  # VFL way
         if isinstance(self.bce, (nn.BCEWithLogitsLoss, Vari_focalLoss, Focal_Loss)):
             loss[1] = self.bce(pred_scores, target_scores.to(dtype)).sum() / target_scores_sum  # BCE VFLoss Focal
-        elif isinstance(self.bce, SlideLoss):
+        elif isinstance(self.bce, BA-SlideLoss):
             if fg_mask.sum():
                 auto_iou = bbox_iou(pred_bboxes[fg_mask], target_bboxes[fg_mask], xywh=False, CIoU=True).mean()
             else:
                 auto_iou = 0.1
-            loss[1] = self.bce(pred_scores, target_scores.to(dtype), auto_iou).sum() / target_scores_sum  # SlideLoss
+            loss[1] = self.bce(pred_scores, target_scores.to(dtype), auto_iou).sum() / target_scores_sum  # BA-SlideLoss
         elif isinstance(self.bce, QualityfocalLoss):
             if fg_mask.sum():
                 pos_ious = bbox_iou(pred_bboxes, target_bboxes / stride_tensor, xywh=False).clamp(min=1e-6).detach()
