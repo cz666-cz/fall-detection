@@ -1,131 +1,73 @@
-CFD-YOLO: Fall Detection in Cluttered Backgrounds Based on YOLOv11
-
-Paper: CFD-YOLO: Fall Detection in Cluttered Background with Global Attention and Wavelet Convolution
-Task: Vision-based Human Fall Detection
-Framework: YOLOv11 (Ultralytics)
+CFD-YOLO: Fall Detection in Complex Scenes Based on Attention Mechanism and Feature Fusion 
 
 Introduction
 
-Human fall detection plays a crucial role in smart healthcare and elderly care systems.
-However, accurate fall detection in real-world environments remains challenging due to cluttered backgrounds, occlusion, complex human postures, and diverse illumination conditions.
+CFD-YOLO is an enhanced fall-detection framework built upon YOLO11. This model is designed to tackle the challenging task of detecting falls in real-world environments characterized by cluttered backgrounds, severe target occlusion, and a wide variability of fall postures. It successfully balances the need for fine-grained feature extraction of ambiguous postures with the stringent real-time requirements of edge device deployment.
 
-To address these challenges, we propose CFD-YOLO, an improved fall detection framework built upon YOLOv11.
-The model enhances global contextual perception, multi-frequency feature representation, and difficult-sample learning while maintaining computational efficiency, making it suitable for real-time and resource-constrained scenarios.
+Main Contributions
+ 
+Boundary-Aware Slide Loss (BA-Slide Loss): A novel loss function that introduces an adaptive boundary-aware weighting mechanism. It focuses on ambiguous boundary samples (such as transitional postures between sitting, bending, crouching, and falling) by assigning them larger weights, thereby improving posture discrimination and reducing classification confusion.
 
-Key Contributions
+Global Attention Mechanism (GAM): Integrated into the backbone network to establish global interactions across channels and spatial dimensions. This enhances the spatial-channel feature representation for complex human body postures, specifically targeting scattered limbs and torso features.
 
-Global Attention Mechanism (GAM)
-Enhances long-range spatial–channel interactions and improves robustness under occlusion and background clutter.
+Wavelet-Enhanced C3k2_WT Module: Designed by integrating Wavelet Convolution (WTConv) into YOLO's C3k2 bottleneck structure. This module captures fine-grained motion features and frequency-domain information by separating low-frequency structural representations and high-frequency edge/texture details.
 
-C3k2 WT Module with Wavelet Convolution
-Introduces frequency-domain decomposition to jointly capture global posture structure and fine-grained edge details.
+GSConv-Based Lightweight Neck: Tailored by removing the small-object detection layer and replacing standard convolutions with Group Shuffle Convolution (GSConv). This context-aware framework significantly reduces computational redundancy while improving the efficiency of multiscale feature fusion.
+ 
 
-Slide Loss Function
-Dynamically emphasizes hard boundary samples to improve detection accuracy in complex fall scenarios.
+Performance
 
-Lightweight Neck with GSConv
-Removes redundant small-object detection heads and reduces computational cost while preserving multi-scale feature fusion.
+Extensive evaluations demonstrate that CFD-YOLO achieves an optimal balance between high detection accuracy and real-time inference speed. On the Roboflow Fall Detection dataset, CFD-YOLO achieves 96.6% mAP@50 and 75.4% mAP@50:95. Furthermore, on the Fall Computer Vision dataset, it attains 97.9% mAP@50 and 88.3% mAP@50:95. In addition to its high accuracy, the model maintains a low computational cost of just 7.1 GFLOPs. Deployment evaluations under FP32 precision also demonstrate impressive real-time inference speeds of 299 FPS on an NVIDIA RTX 4070 Ti, as well as 68.7 FPS and 51.3 FPS on a Jetson Orin Nano 8GB edge device operating under 25W and 15W power modes, respectively.
 
-Dedicated Fall Detection Framework
-Tailored for complex, real-world fall detection scenarios with strong generalization ability.
+Requirements
 
-Model Architecture
-
-The overall architecture of CFD-YOLO is illustrated below:
-
-Backbone (YOLO11 + GAM + C3k2 WT)
-        ↓
-Lightweight Neck (GSConv, Medium & Large Heads)
-        ↓
-Decoupled Detection Head
+The model was trained and evaluated using the following software environment:
+Python: 3.9.20 
+PyTorch: 2.6.0 (CUDA 12.4) 
+Ultralytics: 8.3.63 
 
 
-Please refer to Fig. 2 in the paper for the complete network architecture.
+Dataset Preparation
 
-Datasets
-
-Experiments are conducted on two public benchmark datasets:
-
-1️⃣ Roboflow Fall Detection Dataset
-
-Total images: 10,787
-
-Split: 7,551 (train) / 2,157 (val) / 1,079 (test)
-
-Scenarios: elderly care, surveillance, workplace safety, sports injuries
-
-2️⃣ Fall Computer Vision Dataset
-
-Total images: 2,716
-
-Split: 1,901 (train) / 544 (val) / 271 (test)
-
-Diverse indoor & outdoor environments with varied fall postures
-
-Dataset format (YOLO style):
-
+Organize the dataset as follows:
 datasets/
-├── images/
+├── images
 │   ├── train
 │   ├── val
 │   └── test
-└── labels/
-    ├── train
-    ├── val
-    └── test
+│
+├── labels
+│   ├── train
+│   ├── val
+│   └── test
+│
+└── data.yaml
 
-⚙️ Environment Setup
+Datasets used in this work:
+Roboflow Fall Detection Dataset
+Fall Computer Vision Dataset
 
-Python 3.9
+Training Details
 
-PyTorch 2.6.0
+To reproduce the training results, the following hyperparameters and configurations were used:
 
-CUDA 12.4
-
-Ultralytics 8.3.63
-
-GPU: NVIDIA RTX 4070 Ti (12GB)
-
-Install dependencies:
-
-pip install -r requirements.txt
-
-🚀 Training
-
-Example training command:
-
-python train.py \
-  --model cfgs/CFD-YOLO.yaml \
-  --data data/Roboflow.yaml \
-  --epochs 300 \
-  --img 640 \
-  --batch 2
+Image Resolution: 640 
+ 
+Epochs: 300  
+Batch Size: 2 
+Optimizer: Stochastic Gradient Descent (SGD)  
+Initial Learning Rate: 0.01 
+Random Seed: 42 
+Workers (Data Loading): 1
 
 
-Key training settings:
+Applications
 
-Optimizer: SGD
-
-Initial learning rate: 0.01
-
-Epochs: 300
-
-Random seed: 42
-
-🔍 Evaluation
-
-Run evaluation on the test set:
-
-python val.py --weights runs/train/best.pt
-
-Metrics
-
-Precision (P)
-
-Recall (R)
-
-mAP@0.5
-
-mAP@0.5:0.95
-
-GFLOPs (computational cost)
+CFD-YOLO can be applied to:
+Elderly Care Monitoring
+Smart Healthcare
+Hospital Surveillance
+Public Safety Monitoring
+Campus Security
+Industrial Safety Monitoring
+Edge AI Vision Systems
