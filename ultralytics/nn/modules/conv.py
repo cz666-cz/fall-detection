@@ -27,13 +27,7 @@ __all__ = (
     "VoVGSCSP",
     "VoVGSCSPC",
     "GSConv",
-    "GAMR_Attention",
     "DGAM",
-    "GESAttention",
-    "GAMD_Attention",
-    "GAM1D_Attention",
-    "GSM",
-    "LightGSM",
     "C3k2_WTConv",
     "AMSF"
 )
