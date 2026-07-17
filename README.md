@@ -1,73 +1,179 @@
-CFD-YOLO: Fall Detection in Complex Scenes Based on Attention Mechanism and Feature Fusion 
+ CFD-YOLO
 
-Introduction
+ Fall Detection in Complex Scenes Based on Attention Mechanism and Feature Fusion
 
-CFD-YOLO is an enhanced fall-detection framework built upon YOLO11. This model is designed to tackle the challenging task of detecting falls in real-world environments characterized by cluttered backgrounds, severe target occlusion, and a wide variability of fall postures. It successfully balances the need for fine-grained feature extraction of ambiguous postures with the stringent real-time requirements of edge device deployment.
+📌 Overview
 
-Main Contributions
- 
-Boundary-Aware Slide Loss (BA-Slide Loss): A novel loss function that introduces an adaptive boundary-aware weighting mechanism. It focuses on ambiguous boundary samples (such as transitional postures between sitting, bending, crouching, and falling) by assigning them larger weights, thereby improving posture discrimination and reducing classification confusion.
+Human fall detection plays an important role in intelligent surveillance, elderly care, and safety monitoring systems. However, detecting falls in real-world environments remains challenging due to complex backgrounds, severe occlusion, diverse human postures, illumination variations, and ambiguous transitional states.
 
-Global Attention Mechanism (GAM): Integrated into the backbone network to establish global interactions across channels and spatial dimensions. This enhances the spatial-channel feature representation for complex human body postures, specifically targeting scattered limbs and torso features.
+In this work, we propose CFD-YOLO, an enhanced fall detection framework based on YOLO11, aiming to improve robustness and detection accuracy in complex scenarios while maintaining real-time inference capability.
 
-Wavelet-Enhanced C3k2_WT Module: Designed by integrating Wavelet Convolution (WTConv) into YOLO's C3k2 bottleneck structure. This module captures fine-grained motion features and frequency-domain information by separating low-frequency structural representations and high-frequency edge/texture details.
+CFD-YOLO introduces several task-oriented improvements:
 
-GSConv-Based Lightweight Neck: Tailored by removing the small-object detection layer and replacing standard convolutions with Group Shuffle Convolution (GSConv). This context-aware framework significantly reduces computational redundancy while improving the efficiency of multiscale feature fusion.
- 
+- Boundary-Aware Slide Loss (BA-Slide Loss)  
+  A novel loss optimization strategy designed to emphasize ambiguous samples near the IoU decision boundary and improve discrimination between fall and non-fall behaviors.
 
-Performance
+- Wavelet-enhanced C3k2_WT Module  
+  A feature extraction module integrating wavelet transform and convolution operations to jointly exploit spatial-domain and frequency-domain information.
 
-Extensive evaluations demonstrate that CFD-YOLO achieves an optimal balance between high detection accuracy and real-time inference speed. On the Roboflow Fall Detection dataset, CFD-YOLO achieves 96.6% mAP@50 and 75.4% mAP@50:95. Furthermore, on the Fall Computer Vision dataset, it attains 97.9% mAP@50 and 88.3% mAP@50:95. In addition to its high accuracy, the model maintains a low computational cost of just 7.1 GFLOPs. Deployment evaluations under FP32 precision also demonstrate impressive real-time inference speeds of 299 FPS on an NVIDIA RTX 4070 Ti, as well as 68.7 FPS and 51.3 FPS on a Jetson Orin Nano 8GB edge device operating under 25W and 15W power modes, respectively.
+- Global Attention Mechanism (GAM)  
+  An attention enhancement strategy incorporated into the backbone network to strengthen spatial-channel feature representation.
 
-Requirements
-
-The model was trained and evaluated using the following software environment:
-Python: 3.9.20 
-PyTorch: 2.6.0 (CUDA 12.4) 
-Ultralytics: 8.3.63 
+- Adaptive Multi-Scale Feature Fusion (AMSF)  
+  A multi-scale feature fusion module deployed in the neck network to adaptively aggregate contextual information from different receptive fields.
 
 
-Dataset Preparation
+Extensive experiments demonstrate that CFD-YOLO achieves superior performance compared with mainstream YOLO variants, CNN-based detectors, Transformer-based detectors, and state-space-model-based detectors.
 
-Organize the dataset as follows:
-datasets/
-├── images
-│   ├── train
-│   ├── val
-│   └── test
-│
-├── labels
-│   ├── train
-│   ├── val
-│   └── test
-│
-└── data.yaml
+The inference pipeline contains four stages:
+1. Image preprocessing
+2. Backbone feature extraction
+3. Multi-scale feature fusion
+4. Detection post-processing
 
-Datasets used in this work:
-Roboflow Fall Detection Dataset
-Fall Computer Vision Dataset
+🔥 Main Contributions
 
-Training Details
-
-To reproduce the training results, the following hyperparameters and configurations were used:
-
-Image Resolution: 640 
- 
-Epochs: 300  
-Batch Size: 2 
-Optimizer: Stochastic Gradient Descent (SGD)  
-Initial Learning Rate: 0.01 
-Random Seed: 42 
-Workers (Data Loading): 1
+ 1. Boundary-Aware Slide Loss (BA-Slide Loss)
+Traditional Slide Loss mainly focuses on low-IoU hard samples.
+However, in fall detection tasks, many challenging samples occur near the decision boundary:
+- sitting vs. falling
+- bending vs. falling
+- partially occluded falling posture
+To address this issue, BA-Slide Loss introduces an adaptive boundary-aware weighting mechanism.
+ Advantages:
+- Enhances difficult sample learning
+- Improves posture discrimination
+- Provides stronger optimization signals
+- Improves localization accuracy
 
 
-Applications
+ 2. Wavelet-enhanced C3k2_WT Module
 
-CFD-YOLO can be applied to:
-Elderly Care Monitoring
-Smart Healthcare
-Hospital Surveillance
-Public Safety Monitoring
-Campus Security
-Industrial Safety Monitoring
-Edge AI Vision Systems
+
+The proposed C3k2_WT module integrates Wavelet Transform Convolution (WTConv) into the C3k2 structure.
+
+The input feature is decomposed into four frequency components:
+
+          Input Feature
+
+                |
+                ↓
+
+      Discrete Wavelet Transform
+
+    --
+    |      |      |      |
+    LL     LH     HL     HH
+
+    Low   Edge   Edge   Texture
+    Frequency Details
+
+
+The module simultaneously captures:
+- Global structural information
+- Local texture details
+- Fine-grained human posture features
+
+
+ 3. Global Attention Mechanism (GAM)
+GAM is integrated into the backbone network to enhance global contextual modeling.
+It improves:
+- Channel dependency learning
+- Spatial feature interaction
+- Human body representation
+Compared with conventional attention modules, GAM preserves complete feature dimensions and strengthens cross-dimensional interactions.
+
+
+
+
+ 4. Adaptive Multi-Scale Feature Fusion (AMSF)
+AMSF is introduced into the neck network.
+The module adopts:
+- 3×3 depthwise convolution
+- 5×5 depthwise convolution
+- 7×7 depthwise convolution
+A selective-kernel inspired attention mechanism is employed to dynamically adjust contributions from different receptive fields.
+Advantages:
+- Adaptive contextual aggregation
+- Improved semantic representation
+- Reduced redundant computation
+
+
+
+📊 Experimental Results
+
+
+CFD-YOLO was extensively evaluated on two public fall detection datasets, including the Roboflow Fall Detection Dataset and the Fall Computer Vision Dataset.
+
+On the Roboflow Fall Detection Dataset, CFD-YOLO achieves a Precision of 93.7%, Recall of 92.8%, mAP@50 of 97.2%, and mAP@50:95 of 75.4%, significantly outperforming the baseline YOLO11n. Compared with YOLO11n, CFD-YOLO improves mAP@50 by 4.5 percentage points and mAP@50:95 by 8.8 percentage points, demonstrating stronger robustness in complex scenarios involving occlusion, cluttered backgrounds, and diverse human postures.
+
+On the Fall Computer Vision Dataset, CFD-YOLO further achieves a Precision of 96.6%, Recall of 93.9%, mAP@50 of 98.2%, and mAP@50:95 of 88.6%, validating its strong generalization capability across different environments and fall patterns.
+
+In terms of computational efficiency, CFD-YOLO achieves 322.89 FPS with only 3.10 ms latency on an NVIDIA RTX 4070 Ti GPU. Furthermore, deployment experiments on the NVIDIA Jetson Orin Nano 8GB edge device demonstrate real-time performance, reaching 68.4 FPS at 25W power mode and 50.8 FPS at 15W power mode.
+
+Extensive comparisons with CNN-based detectors, Transformer-based detectors, State Space Model-based detectors, and other YOLO variants demonstrate that CFD-YOLO achieves an effective balance between detection accuracy, computational efficiency, and real-time deployment capability.
+
+🌍 Application Scenarios
+
+
+CFD-YOLO is designed for real-world fall detection applications where reliable and timely human fall recognition is required. Its robustness under complex backgrounds, occlusion, and diverse human postures makes it suitable for various intelligent monitoring scenarios.
+
+ 1. Elderly Care and Smart Healthcare
+
+Falls are one of the major safety risks for elderly individuals. CFD-YOLO can be integrated into smart cameras and healthcare monitoring systems to automatically detect accidental falls in:
+- Nursing homes
+- Assisted living facilities
+- Hospital wards
+- Home care environments
+The system can provide timely alerts to caregivers and medical personnel, reducing response time after a fall event.
+
+ 2. Intelligent Surveillance Systems
+
+Traditional surveillance systems mainly rely on manual monitoring, which is inefficient for continuous safety supervision.
+CFD-YOLO can enhance intelligent surveillance platforms by automatically identifying fall events in:
+- Public areas
+- Residential communities
+- Shopping malls
+- Transportation hubs
+Its ability to handle cluttered scenes and partial occlusion enables reliable detection in crowded environments.
+
+
+ 3. Smart Campus Safety Monitoring
+
+Students and elderly people may experience sudden falls in educational environments.
+CFD-YOLO can be applied in:
+- Schools
+- Universities
+- Dormitories
+- Campus public spaces
+The model can assist safety management systems by detecting abnormal fall events and providing rapid emergency notifications.
+
+ 4. Public Transportation and Crowded Environments
+
+Falls frequently occur in crowded areas where human bodies may be partially blocked by surrounding people or objects.
+Potential applications include:
+- Bus stations
+- Subway stations
+- Airports
+- Railway platforms
+CFD-YOLO's enhanced feature representation improves detection reliability under occlusion and complex backgrounds.
+
+ 5. Industrial and Workplace Safety Monitoring
+
+In industrial environments, worker falls may lead to serious injuries.
+CFD-YOLO can support safety monitoring in:
+- Manufacturing factories
+- Construction sites
+- Warehouses
+- Mining environments
+Combined with existing surveillance cameras, the system can provide automatic accident detection and emergency response.
+
+ 6. Edge-Based Real-Time Monitoring Devices
+
+Due to its efficient inference capability, CFD-YOLO can be deployed on edge computing platforms such as NVIDIA Jetson Orin Nano.
+Potential applications include:
+- Smart cameras
+- Mobile monitoring robots
+- Embedded safety devices
+- IoT-based surveillance systems
+The edge deployment capability enables real-time fall detection without requiring continuous cloud computing.
