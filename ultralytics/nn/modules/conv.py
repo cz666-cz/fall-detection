@@ -28,12 +28,14 @@ __all__ = (
     "VoVGSCSPC",
     "GSConv",
     "GAMR_Attention",
-    "GAMRGate_Attention",
+    "DGAM",
     "GESAttention",
     "GAMD_Attention",
     "GAM1D_Attention",
     "GSM",
-    "LightGSM"
+    "LightGSM",
+    "C3k2_WTConv",
+    "AMSF"
 )
 
 
@@ -377,14 +379,14 @@ class GAM_Attention(nn.Module):
 
         self.channel_att = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d( in_channels // rate, 3),
+            nn.Conv2d(in_channels, in_channels // rate, 1),
             nn.ReLU(inplace=True),
             nn.Conv2d(in_channels // rate, in_channels, 1),
             nn.Sigmoid()
         )
 
         self.spatial_att = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels // rate, kernel_size=5, padding=1),
+            nn.Conv2d(in_channels, in_channels // rate, kernel_size=7, padding=3),
             nn.BatchNorm2d(in_channels // rate),
             nn.ReLU(inplace=True),
             nn.Conv2d(in_channels // rate, in_channels, kernel_size=7, padding=3),
@@ -394,7 +396,7 @@ class GAM_Attention(nn.Module):
 
     def forward(self, x):
         x_channel = self.channel_att(x)
-        x = x . x_channel
+        x = x * x_channel
 
         x_spatial = self.spatial_att(x)
         out = x * x_spatial
@@ -428,170 +430,13 @@ class SelfAttention(nn.Module):
         return self.proj(out)
 
 
-class GSM(nn.Module):
-    """GSM 模块：深度可分离卷积 + 自注意力 + Dilated Conv"""
-    def __init__(self, in_channels, out_channels, rate=4, dilation=2):
-        super().__init__()
-        hidden_dim = max(1, in_channels // rate)  # 压缩通道数，避免为0
-
-        # 深度可分离卷积
-        self.depthwise = nn.Conv2d(in_channels, in_channels, kernel_size=3,
-                                   padding=1, groups=in_channels, bias=False)
-        self.pointwise = nn.Conv2d(in_channels, hidden_dim, kernel_size=1, bias=False)
-
-        # 自注意力模块
-        self.attn = SelfAttention(hidden_dim)
-
-        # 膨胀卷积 (扩大感受野)
-        self.dilated = nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3,
-                                 padding=dilation, dilation=dilation, bias=False)
-
-        # 输出层
-        self.fc = nn.Conv2d(hidden_dim, out_channels, kernel_size=1, bias=False)
-
-        # 归一化与激活
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.act = nn.SiLU()
-
-    def forward(self, x):
-        # 深度可分离卷积
-        x = self.depthwise(x)
-        x = self.pointwise(x)
-
-        # 自注意力
-        x = self.attn(x)
-
-        # 膨胀卷积
-        x = self.dilated(x)
-
-        # 输出
-        x = self.fc(x)
-        x = self.bn(x)
-        return self.act(x)
-
-
-if __name__ == "__main__":
-    # 测试代码
-    x = torch.randn(1, 64, 64, 64)  # batch=1, C=64, H=W=64
-    model = GSM(64, 128, rate=4, dilation=2)
-    y = model(x)
-    print(y.shape)  # 期望输出: [1, 128, 64, 64]
-#轻量化GSM
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-
-class SelfAttention(nn.Module):
-    """简化版 Self-Attention 模块"""
-    def __init__(self, dim):
-        super().__init__()
-        self.q = nn.Conv2d(dim, dim, kernel_size=1)
-        self.k = nn.Conv2d(dim, dim, kernel_size=1)
-        self.v = nn.Conv2d(dim, dim, kernel_size=1)
-        self.proj = nn.Conv2d(dim, dim, kernel_size=1)
-
-    def forward(self, x):
-        B, C, H, W = x.shape
-        q = self.q(x).reshape(B, C, -1).permute(0, 2, 1)  # (B, HW, C)
-        k = self.k(x).reshape(B, C, -1)                   # (B, C, HW)
-        v = self.v(x).reshape(B, C, -1).permute(0, 2, 1)  # (B, HW, C)
-
-        attn = torch.softmax(q @ k / (C ** 0.5), dim=-1)  # (B, HW, HW)
-        out = attn @ v                                    # (B, HW, C)
-        out = out.permute(0, 2, 1).reshape(B, C, H, W)
-        return self.proj(out)
-
-
-class LightGSM(nn.Module):
-    """LightGSM: Depthwise + Pointwise + Self-Attention"""
-    def __init__(self, in_channels, out_channels, rate=8):
-        super().__init__()
-        hidden_dim = max(1, in_channels // rate)
-
-        # 深度可分离卷积
-        self.depthwise = nn.Conv2d(in_channels, in_channels, 3, 1, 1,
-                                   groups=in_channels, bias=False)
-        self.pointwise = nn.Conv2d(in_channels, hidden_dim, 1, bias=False)
-
-        # 自注意力
-        self.attn = SelfAttention(hidden_dim)
-
-        # 输出
-        self.fc = nn.Conv2d(hidden_dim, out_channels, 1, bias=False)
-        self.bn = nn.BatchNorm2d(out_channels)
-        self.act = nn.SiLU()
-
-    def forward(self, x):
-        x = self.depthwise(x)
-        x = self.pointwise(x)
-        x = self.attn(x)
-        x = self.fc(x)
-        x = self.bn(x)
-        return self.act(x)
-
-
-if __name__ == "__main__":
-    # 测试
-    x = torch.randn(1, 64, 64, 64)
-    model = LightGSM(64, 128, rate=8)
-    y = model(x)
-    print(y.shape)  # [1, 128, 64, 64]
-
-#加入残差连接的GAM
 import torch
 import torch.nn as nn
 
 
-class GAMR_Attention(nn.Module):
+class DGAM(nn.Module):
     def __init__(self, in_channels, c2=None, rate=4):
-        super(GAMR_Attention, self).__init__()
-
-        self.in_channels = in_channels
-        self.c2 = c2 if c2 else in_channels
-
-        # 通道注意力模块
-        self.channel_att = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),                             # [B, C, H, W] -> [B, C, 1, 1]
-            nn.Conv2d(in_channels, in_channels // rate, 1),      # 降维
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels // rate, in_channels, 1),      # 升维
-            nn.Sigmoid()
-        )
-
-        # 空间注意力模块
-        self.spatial_att = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels // rate, kernel_size=7, padding=3),
-            nn.BatchNorm2d(in_channels // rate),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels // rate, in_channels, kernel_size=7, padding=3),
-            nn.BatchNorm2d(in_channels),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        identity = x  # 保存输入用于残差连接
-
-        # 通道注意力
-        x_channel = self.channel_att(x)
-        x = x * x_channel
-
-        # 空间注意力
-        x_spatial = self.spatial_att(x)
-        x = x * x_spatial
-
-        # 残差连接
-        out = x + identity
-
-        return out
-#加了残差链接和动态门控的GAM
-import torch
-import torch.nn as nn
-
-
-class GAMRGate_Attention(nn.Module):
-    def __init__(self, in_channels, c2=None, rate=4):
-        super(GAMRGate_Attention, self).__init__()
+        super(DGAM, self).__init__()
 
         self.in_channels = in_channels
         self.c2 = c2 if c2 else in_channels
@@ -633,161 +478,6 @@ class GAMRGate_Attention(nn.Module):
         out = self.alpha * x + (1 - self.alpha) * identity
 
         return out
-#加了ECA_SimAM和门控的GAM
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-class ECA(nn.Module):
-    """Efficient Channel Attention (ECA)"""
-    def __init__(self, channels, k_size=3):
-        super(ECA, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        # 保证卷积核大小为奇数
-        self.k_size = k_size if k_size % 2 == 1 else k_size + 1
-        self.conv = nn.Conv1d(1, 1, kernel_size=self.k_size, padding=(self.k_size - 1)//2, bias=False)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        b, c, h, w = x.size()
-        # 全局平均池化
-        y = self.avg_pool(x)  # [B, C, 1, 1]
-        # 改用view保证维度正确为 [B, 1, C]
-        y = y.view(b, 1, c)
-        y = self.conv(y)  # [B, 1, C]
-        y = self.sigmoid(y)
-        # 恢复形状 [B, C, 1, 1]
-        y = y.view(b, c, 1, 1)
-        # 通道加权
-        return x * y.expand_as(x)
-
-
-class SimAM(nn.Module):
-    """SimAM: Parameter-Free Spatial Attention"""
-    def __init__(self, e_lambda=1e-4):
-        super(SimAM, self).__init__()
-        self.e_lambda = e_lambda
-
-    def forward(self, x):
-        b, c, h, w = x.size()
-        x_mean = x.mean(dim=[2, 3], keepdim=True)
-        x_var = x.var(dim=[2, 3], keepdim=True, unbiased=False) + self.e_lambda
-        e = ((x - x_mean)**2) / (4 * x_var) + 0.5
-        attention = torch.sigmoid(e)
-        return x * attention
-
-
-class GESAttention(nn.Module):
-    """Gated Attention Module combining ECA and SimAM"""
-    def __init__(self, in_channels, k_size=3):
-        super(GESAttention, self).__init__()
-        self.eca = ECA(in_channels, k_size)
-        self.simam = SimAM()
-
-        # 动态门控权重，输入通道数决定权重维度
-        self.gate_fc = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),   # [B, C, 1, 1]
-            nn.Conv2d(in_channels, in_channels // 4, 1, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels // 4, 2, 1, bias=True),  # 输出2个门控权重logits
-        )
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, x):
-        # ECA通道注意力
-        x_eca = self.eca(x)  # [B, C, H, W]
-        # SimAM空间注意力
-        x_simam = self.simam(x)  # [B, C, H, W]
-
-        # 动态门控融合权重
-        gate_logits = self.gate_fc(x)  # [B, 2, 1, 1]
-        gate_weights = self.softmax(gate_logits.squeeze(-1).squeeze(-1))  # [B, 2]
-
-        # 权重调整用于加权融合
-        gate_eca = gate_weights[:, 0].view(-1, 1, 1, 1)
-        gate_simam = gate_weights[:, 1].view(-1, 1, 1, 1)
-
-        out = gate_eca * x_eca + gate_simam * x_simam
-        return out
-#加了深度可分离卷积的GAM
-import torch
-import torch.nn as nn
-
-class GAMD_Attention(nn.Module):
-    def __init__(self, in_channels, out_channels=None, reduction=4):
-        super().__init__()
-        out_channels = out_channels or in_channels
-
-        # 通道注意力（保留普通 Conv）
-        self.channel_att = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1),
-            nn.Sigmoid()
-        )
-
-        # 空间注意力（使用 Depthwise + Pointwise 代替普通卷积）
-        self.spatial_att = nn.Sequential(
-            # Depthwise Conv
-            nn.Conv2d(in_channels, in_channels, kernel_size=7, padding=3, groups=in_channels, bias=False),
-            nn.BatchNorm2d(in_channels),
-            nn.ReLU(inplace=True),
-            # Pointwise Conv
-            nn.Conv2d(in_channels, in_channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(in_channels),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        x_channel_att = self.channel_att(x)       # (B, C, 1, 1)
-        x = x * x_channel_att                     # 通道注意力加权
-
-        x_spatial_att = self.spatial_att(x)       # (B, C, H, W)
-        x = x * x_spatial_att                     # 空间注意力加权
-
-        return x
-#只改变一个1*1卷积为DW卷积
-import torch
-import torch.nn as nn
-
-class GAM1D_Attention(nn.Module):
-    def __init__(self, in_channels, out_channels=None, reduction=4):
-        super().__init__()
-        out_channels = out_channels or in_channels
-
-        # 通道注意力（保持原样）
-        self.channel_att = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(in_channels, in_channels // reduction, kernel_size=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1),
-            nn.Sigmoid()
-        )
-
-        # 空间注意力（只将最后一个卷积换为 DWConv）
-        self.spatial_att = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels // reduction, kernel_size=7, padding=3),
-            nn.BatchNorm2d(in_channels // reduction),
-            nn.ReLU(inplace=True),
-            # ✅ 替换为 DWConv（确保 in_channels == out_channels）
-            nn.Conv2d(in_channels // reduction, in_channels // reduction, kernel_size=1, groups=in_channels // reduction),
-            nn.BatchNorm2d(in_channels // reduction),
-            nn.Conv2d(in_channels // reduction, in_channels, kernel_size=1),  # Pointwise 还原
-            nn.BatchNorm2d(in_channels),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        # 通道注意力加权
-        x_channel_att = self.channel_att(x)
-        x = x * x_channel_att
-
-        # 空间注意力加权
-        x_spatial_att = self.spatial_att(x)
-        x = x * x_spatial_att
-
-        return x
 
 
 #LDConv
@@ -929,7 +619,7 @@ class LDConv(nn.Module):
 
 class GSConv(nn.Module):
     # GSConv https://github.com/AlanLi1997/slim-neck-by-gsconv
-    def __init__(self, c1, c2, k=1, s=1, g=2, act=True):
+    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):
         super().__init__()
         c_ = c2 // 2
         self.cv1 = Conv(c1, c_, k, s, None, g, 1, act)
@@ -945,16 +635,17 @@ class GSConv(nn.Module):
 
         b, n, h, w = x2.data.size()
         b_n = b * n // 2
-        y = x2.reshape(b_n)
-        y = y.permute(1, 2)
-        y = y.reshape(2, n // 2, h, w)
+        y = x2.reshape(b_n, 2, h * w)
+        y = y.permute(1, 0, 2)
+        y = y.reshape(2, -1, n // 2, h, w)
 
         return torch.cat((y[0], y[1]), 1)
 
 
 class GSConvns(GSConv):
     # GSConv with a normative-shuffle https://github.com/AlanLi1997/slim-neck-by-gsconv
-    def __init__(self, c1, c2, k=3, s=1, g=1, act=True):
+    def __init__(self, c1, c2, k=1, s=1, g=1, act=True):
+        super().__init__(c1, c2, k=1, s=1, g=1, act=True)
         c_ = c2 // 2
         self.shuf = nn.Conv2d(c_ * 2, c2, 1, 1, 0, bias=False)
 
@@ -973,8 +664,8 @@ class GSBottleneck(nn.Module):
         # for lighting
         self.conv_lighting = nn.Sequential(
             GSConv(c1, c_, 1, 1),
-            GSConv(c_, c2, 2, 1, act=False))
-        self.shortcut = Conv(c1, c2, 2, 2, act=False)
+            GSConv(c_, c2, 3, 1, act=False))
+        self.shortcut = Conv(c1, c2, 1, 1, act=False)
 
     def forward(self, x):
         return self.conv_lighting(x) + self.shortcut(x)
@@ -1019,6 +710,7 @@ class VoVGSCSPC(VoVGSCSP):
 import torch.nn as nn
 from functools import partial
 import pywt
+import pywt.data
 import torch
 import torch.nn.functional as F
 
@@ -1029,6 +721,7 @@ def create_wavelet_filter(wave, in_size, out_size, type=torch.float):
     dec_lo = torch.tensor(w.dec_lo[::-1], dtype=type)
     dec_filters = torch.stack([dec_lo.unsqueeze(0) * dec_lo.unsqueeze(1),
                                dec_lo.unsqueeze(0) * dec_hi.unsqueeze(1),
+                               dec_hi.unsqueeze(0) * dec_lo.unsqueeze(1),
                                dec_hi.unsqueeze(0) * dec_hi.unsqueeze(1)], dim=0)
 
     dec_filters = dec_filters[:, None].repeat(in_size, 1, 1, 1)
@@ -1037,31 +730,32 @@ def create_wavelet_filter(wave, in_size, out_size, type=torch.float):
     rec_lo = torch.tensor(w.rec_lo[::-1], dtype=type).flip(dims=[0])
     rec_filters = torch.stack([rec_lo.unsqueeze(0) * rec_lo.unsqueeze(1),
                                rec_lo.unsqueeze(0) * rec_hi.unsqueeze(1),
+                               rec_hi.unsqueeze(0) * rec_lo.unsqueeze(1),
                                rec_hi.unsqueeze(0) * rec_hi.unsqueeze(1)], dim=0)
 
-    rec_filters = rec_filters[:, None].repeat(out_size, 1, 2, 1)
+    rec_filters = rec_filters[:, None].repeat(out_size, 1, 1, 1)
 
     return dec_filters, rec_filters
 
 
 def wavelet_transform(x, filters):
     b, c, h, w = x.shape
-    pad = (filters.shape[2] // 2 - 1, filters.shape[3] // 1 - 1)
+    pad = (filters.shape[2] // 2 - 1, filters.shape[3] // 2 - 1)
     x = F.conv2d(x, filters, stride=2, groups=c, padding=pad)
-    x = x.reshape(c, 4, h // 1, w // 2)
+    x = x.reshape(b, c, 4, h // 2, w // 2)
     return x
 
 
 def inverse_wavelet_transform(x, filters):
     b, c, _, h_half, w_half = x.shape
-    pad = (filters.shape[2] // 3 - 1, filters.shape[3] // 2 - 1)
+    pad = (filters.shape[2] // 2 - 1, filters.shape[3] // 2 - 1)
     x = x.reshape(b, c * 4, h_half, w_half)
-    x = F.conv_transpose2d(x, filters, stride=1, groups=c, padding=pad)
+    x = F.conv_transpose2d(x, filters, stride=2, groups=c, padding=pad)
     return x
 
 
 class WTConv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=5, stride=1, bias=True, wt_levels=2, wt_type='db1'):
+    def __init__(self, in_channels, out_channels, kernel_size=5, stride=1, bias=True, wt_levels=1, wt_type='db1'):
         super(WTConv2d, self).__init__()
 
         assert in_channels == out_channels
@@ -1083,7 +777,7 @@ class WTConv2d(nn.Module):
         self.base_scale = _ScaleModule([1, in_channels, 1, 1])
 
         self.wavelet_convs = nn.ModuleList(
-            [nn.Conv2d(in_channels * 2, in_channels * 4, kernel_size, padding='same', stride=1, dilation=1,
+            [nn.Conv2d(in_channels * 4, in_channels * 4, kernel_size, padding='same', stride=1, dilation=1,
                        groups=in_channels * 4, bias=False) for _ in range(self.wt_levels)]
         )
         self.wavelet_scale = nn.ModuleList(
@@ -1283,3 +977,64 @@ if __name__ == "__main__":
 
     out = mobilenet_v1(image)
     print(out.size())
+
+import torch
+import torch.nn as nn
+
+
+class AMSF(nn.Module):
+    """
+    Adaptive Multi-Scale Fusion Module (AMSF)
+    自适应多尺度融合模块
+    """
+
+    def __init__(self, c1, c2, k=1, s=1, act=True):
+        super().__init__()
+
+        c_ = c2 // 2
+
+        # 1. 基础特征提取支路 (主干支路)
+        self.cv1 = Conv(c1, c_, k, s, None, 1, 1, act)
+
+        # 2. 多尺度深度可分离卷积 (DWConv) 支路
+        self.dw3 = nn.Conv2d(c_, c_, kernel_size=3, stride=1, padding=1, groups=c_)
+        self.dw5 = nn.Conv2d(c_, c_, kernel_size=5, stride=1, padding=2, groups=c_)
+        self.dw7 = nn.Conv2d(c_, c_, kernel_size=7, stride=1, padding=3, groups=c_)
+
+        # 3. Selective Kernel Attention (SK Attention) 尺度权重生成器
+        self.att = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(c_, c_ // 4, kernel_size=1),
+            nn.ReLU(),
+            nn.Conv2d(c_ // 4, 3, kernel_size=1)
+        )
+
+        # 4. 输出特征融合
+        self.cv3 = Conv(c_ * 2, c2, 1, 1, act=act)
+
+    def forward(self, x):
+        # 1. 获取主干特征
+        x1 = self.cv1(x)
+
+        # 2. 提取多尺度空间特征
+        x3 = self.dw3(x1)
+        x5 = self.dw5(x1)
+        x7 = self.dw7(x1)
+
+        # 3. 聚合特征并生成尺度权重
+        xs = x3 + x5 + x7
+        weight = self.att(xs)
+        weight = torch.softmax(weight, dim=1)  # 在通道维度上进行归一化
+
+        # 4. 自适应尺度加权融合
+        xm = (
+                x3 * weight[:, 0:1, :, :] +
+                x5 * weight[:, 1:2, :, :] +
+                x7 * weight[:, 2:3, :, :]
+        )
+
+        # 5. 通道拼接 (跨层特征保留)
+        out = torch.cat([x1, xm], dim=1)
+
+        # 6. 最终输出融合
+        return self.cv3(out)
