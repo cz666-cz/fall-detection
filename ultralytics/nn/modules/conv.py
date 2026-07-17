@@ -397,32 +397,6 @@ class GAM_Attention(nn.Module):
 
         return out
 
-#加入深度可分离卷积与膨胀卷积，自注意力机制的GSM
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-
-class SelfAttention(nn.Module):
-    """简化版 Self-Attention 模块"""
-    def __init__(self, dim):
-        super().__init__()
-        self.q = nn.Conv2d(dim, dim, kernel_size=1)
-        self.k = nn.Conv2d(dim, dim, kernel_size=1)
-        self.v = nn.Conv2d(dim, dim, kernel_size=1)
-        self.proj = nn.Conv2d(dim, dim, kernel_size=1)
-
-    def forward(self, x):
-        B, C, H, W = x.shape
-        q = self.q(x).reshape(B, C, -1).permute(0, 2, 1)  # (B, HW, C)
-        k = self.k(x).reshape(B, C, -1)                   # (B, C, HW)
-        v = self.v(x).reshape(B, C, -1).permute(0, 2, 1)  # (B, HW, C)
-
-        attn = torch.softmax(q @ k / (C ** 0.5), dim=-1)  # (B, HW, HW)
-        out = attn @ v                                    # (B, HW, C)
-        out = out.permute(0, 2, 1).reshape(B, C, H, W)
-        return self.proj(out)
-
 
 import torch
 import torch.nn as nn
@@ -454,7 +428,7 @@ class DGAM(nn.Module):
             nn.Sigmoid()
         )
 
-        # 动态融合参数（可学习的标量，初始为0.5）
+        # 动态融合参数
         self.alpha = nn.Parameter(torch.tensor(0.5))  # 会自动在训练中学习最优值
 
     def forward(self, x):
