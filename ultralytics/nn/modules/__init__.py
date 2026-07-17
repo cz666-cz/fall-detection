@@ -168,13 +168,8 @@ __all__ = (
     "LDConv",
     "C3k2_WTConv",
     "SEAM",
-    "GAMR_Attention",
-    "GAMRGate_Attention",
-    "GESAttention",
-    "GAMD_Attention",
-    "GAM1D_Attention",
-    "GSM",
-    "LightGSM",
+    "DGAM",
+  
 
 )
 from .conv import GAM_Attention
@@ -184,11 +179,6 @@ from .conv import VoVGSCSPC
 from .conv import GSConv
 from .conv import C3k2_WTConv
 from .block import SEAM
-from .conv import GAMR_Attention
-from .conv import GAMRGate_Attention
-from .conv import GESAttention
-from .conv import GAMD_Attention
-from .conv import GAM1D_Attention
-from .conv import GSM
-from .conv import LightGSM
+from .conv import DGAM
+
 
