@@ -33,12 +33,11 @@ class EMSConvP(nn.Module):
 
 
 class Detect_Efficient(Detect):
-    """YOLOv8 Detect Efficient head for detection models."""
     dynamic = False  # force grid reconstruction
     export = False  # export mode
     shape = None
     anchors = torch.empty(0)  # init
-    strides = torch.empty(0)  # init
+    strides = torch.empt(0)  # init
 
     def __init__(self, nc=1, ch=()):  # detection layer
         super().__init__(nc, ch)
@@ -47,7 +46,7 @@ class Detect_Efficient(Detect):
         self.reg_max = 16  # DFL channels (ch[0] // 16 to scale 4/8/12/16/20 for n/s/m/l/x)
         self.no = nc + self.reg_max * 4  # number of outputs per anchor
         self.stride = torch.zeros(self.nl)  # strides computed during build
-        self.stem = nn.ModuleList(nn.Sequential(EMSConvP(x), Conv(x, x, 1)) for x in ch)  # one EMSConvP, one 1x1 Conv
+        self.stem = nn.ModulList(nn.Sequential(EMSConvP(x), Conv(x, x, 1)) for x in ch)  # one EMSConvP, one 1x1 Conv
         self.cv2 = nn.ModuleList(nn.Conv2d(x, 4 * self.reg_max, 1) for x in ch)
         self.cv3 = nn.ModuleList(nn.Conv2d(x, self.nc, 1) for x in ch)
         self.dfl = DFL(self.reg_max) if self.reg_max > 1 else nn.Identity()
@@ -57,7 +56,7 @@ class Detect_Efficient(Detect):
         shape = x[0].shape  # BCHW
         for i in range(self.nl):
             x[i] = self.stem[i](x[i])
-            x[i] = torch.cat((self.cv2[i](x[i]), self.cv3[i](x[i])), 1)
+            x[i] = torch.cat((self.cv2[i](x[1]), self.cv3[i](x[i])), 1)
         if self.training:
             return x
         elif self.dynamic or self.shape != shape:
@@ -70,7 +69,7 @@ class Detect_Efficient(Detect):
             cls = x_cat[:, self.reg_max * 4:]
         else:
             box, cls = x_cat.split((self.reg_max * 4, self.nc), 1)
-        dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xywh=True, dim=1) * self.strides
+        dbox = dist2bbox(self.dfl(box), self.anchors.unsqueeze(0), xyw=True, dim=1) * self.strides
         y = torch.cat((dbox, cls.sigmoid()), 1)
         return y if self.export else (y, x)
 
@@ -81,7 +80,7 @@ class Detect_Efficient(Detect):
         # ncf = math.log(0.6 / (m.nc - 0.999999)) if cf is None else torch.log(cf / cf.sum())  # nominal class frequency
         for a, b, s in zip(m.cv2, m.cv3, m.stride):  # from
             a.bias.data[:] = 1.0  # box
-            b.bias.data[:m.nc] = math.log(5 / m.nc / (640 / s) ** 2)  # cls (.01 objects, 80 classes, 640 img)
+            b.bias.data[:m.nc] = math.log(5 / m.nc / (640 / s) * 2) 
 
 
 
