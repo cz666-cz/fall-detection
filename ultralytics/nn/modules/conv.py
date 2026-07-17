@@ -27,7 +27,6 @@ __all__ = (
     "VoVGSCSP",
     "VoVGSCSPC",
     "GSConv",
-    "DGAM",
     "C3k2_WTConv",
     "AMSF"
 )
@@ -396,57 +395,6 @@ class GAM_Attention(nn.Module):
         out = x * x_spatial
 
         return out
-
-
-import torch
-import torch.nn as nn
-
-
-class DGAM(nn.Module):
-    def __init__(self, in_channels, c2=None, rate=4):
-        super(DGAM, self).__init__()
-
-        self.in_channels = in_channels
-        self.c2 = c2 if c2 else in_channels
-
-        # 通道注意力模块
-        self.channel_att = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(in_channels, in_channels // rate, 1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels // rate, in_channels, 1),
-            nn.Sigmoid()
-        )
-
-        # 空间注意力模块
-        self.spatial_att = nn.Sequential(
-            nn.Conv2d(in_channels, in_channels // rate, kernel_size=7, padding=3),
-            nn.BatchNorm2d(in_channels // rate),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(in_channels // rate, in_channels, kernel_size=7, padding=3),
-            nn.BatchNorm2d(in_channels),
-            nn.Sigmoid()
-        )
-
-        # 动态融合参数
-        self.alpha = nn.Parameter(torch.tensor(0.5))  # 会自动在训练中学习最优值
-
-    def forward(self, x):
-        identity = x  # 保存原始输入
-
-        # 通道注意力
-        x_channel = self.channel_att(x)
-        x = x * x_channel
-
-        # 空间注意力
-        x_spatial = self.spatial_att(x)
-        x = x * x_spatial
-
-        # 动态门控融合
-        out = self.alpha * x + (1 - self.alpha) * identity
-
-        return out
-
 
 #LDConv
 class LDConv(nn.Module):
