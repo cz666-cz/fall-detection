@@ -75,7 +75,6 @@ from ultralytics.nn.modules import (
     GSConv,
     C3k2_WTConv,
     SEAM,
-    DGAM,
     CBAM,
 
 )
@@ -1020,7 +1019,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             GSConv,
             C3k2_WTConv,
             SEAM,
-            DGAM,
             WavKANConv2d,
             RBFKANConv2d,
             KANConv2d,
