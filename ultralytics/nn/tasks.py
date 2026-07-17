@@ -75,14 +75,9 @@ from ultralytics.nn.modules import (
     GSConv,
     C3k2_WTConv,
     SEAM,
-    GAMR_Attention,
-    GAMRGate_Attention,
-    GESAttention,
-    GAMD_Attention,
-    GAM1D_Attention,
+    DGAM,
     CBAM,
-    GSM,
-    LightGSM
+
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -1025,11 +1020,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             GSConv,
             C3k2_WTConv,
             SEAM,
-            GAMR_Attention,
-            GAMRGate_Attention,
-            GESAttention,
-            GAMD_Attention,
-            GAM1D_Attention,
+            DGAM,
             WavKANConv2d,
             RBFKANConv2d,
             KANConv2d,
@@ -1057,8 +1048,6 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             C2PSA_CGA,
             C2PSA_SENetV2,
             SPPFSENetV2,
-            GSM,
-            LightGSM,
             C2PSAMLLA
         }:
             c1, c2 = ch[f], args[0]
