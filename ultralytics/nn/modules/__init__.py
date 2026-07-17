@@ -167,9 +167,7 @@ __all__ = (
     "GAM_Attention",
     "LDConv",
     "C3k2_WTConv",
-    "SEAM",
-    "DGAM",
-  
+    "SEAM" 
 
 )
 from .conv import GAM_Attention
@@ -179,6 +177,6 @@ from .conv import VoVGSCSPC
 from .conv import GSConv
 from .conv import C3k2_WTConv
 from .block import SEAM
-from .conv import DGAM
+
 
 
